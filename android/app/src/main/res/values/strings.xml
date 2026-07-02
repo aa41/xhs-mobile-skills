@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">分享助手</string>
+    <string name="main_title">内容列表</string>
+    <string name="empty_hint">还没有内容。\n运行 xhs-mobile skill 生成小红书/公众号内容并安装到手机后，这里会按日期列出。</string>
+    <string name="tab_xhs">小红书预览</string>
+    <string name="tab_wechat">公众号预览</string>
+    <string name="btn_share_xhs">分享到小红书</string>
+    <string name="btn_share_wechat">发到微信</string>
+    <string name="btn_official">发送到公众号</string>
+</resources>

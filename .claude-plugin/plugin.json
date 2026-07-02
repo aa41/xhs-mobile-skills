@@ -1,0 +1,8 @@
+{
+  "name": "xhs-mobile",
+  "version": "1.0.0",
+  "description": "把 git 历史或需求变成面向用户的小红书 / 微信公众号内容（反 AI 文案 + 复刻 baoyu-xhs-images 的卡片图），打包进自带 Android App 并装机分享。",
+  "homepage": "https://github.com/your-org/xhs-mobile-skills",
+  "license": "MIT",
+  "keywords": ["小红书", "微信公众号", "android", "分享", "release-note", "开发日报"]
+}

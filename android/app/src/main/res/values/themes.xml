@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.XhsMobile" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <!-- Edge-to-edge: draw behind status bar, handle insets in code -->
+        <item name="android:windowTranslucentStatus">true</item>
+        <!-- 暂无深色主题资源，强制浅色模式避免白字白底等视觉异常 -->
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

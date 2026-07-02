@@ -1,0 +1,39 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+
+# ---- Secrets / env ----
+.env
+skills/xhs-mobile/.env
+~/.xhs-mobile/.env
+
+# skill install record (contains absolute local paths)
+.xhs-mobile/config.json
+
+# ---- Android / Gradle ----
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/*.iml
+android/app/*.iml
+*.apk
+*.aab
+*.ap_
+*.dex
+.idea/
+
+# ---- IDE / OS ----
+.DS_Store
+*.swp
+.vscode/
+
+# ---- Generated publishing posts (keep shipped sample, ignore the rest) ----
+android/app/src/main/assets/posts/*
+!android/app/src/main/assets/posts/2026-07-02-sample/

@@ -1,0 +1,13 @@
+{
+  "name": "xhs-mobile-skills",
+  "owner": {
+    "name": "xhs-mobile-skills"
+  },
+  "plugins": [
+    {
+      "name": "xhs-mobile",
+      "source": "./",
+      "description": "小红书 / 微信公众号 移动端分享 skill：git 历史或需求 → 反 AI 文案 + 卡片图 → 打包进 Android App → 装机分享"
+    }
+  ]
+}

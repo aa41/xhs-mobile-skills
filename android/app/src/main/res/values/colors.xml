@@ -1,0 +1,16 @@
+<resources>
+    <color name="bg">#FFF7F8FA</color>
+    <color name="card_bg">#FFFFFFFF</color>
+    <color name="placeholder">#FFEDEDF0</color>
+    <color name="text_primary">#FF1F1F22</color>
+    <color name="text_body">#FF3C3C43</color>
+    <color name="text_secondary">#FF8A8A90</color>
+    <color name="accent">#FFFF2E4D</color>
+    <color name="chip_bg">#22FF2E4D</color>
+    <color name="chip_text">#FFFF2E4D</color>
+    <color name="tab_bg">#22FF2E4D</color>
+    <color name="primary">#FFFF2E4D</color>
+    <color name="primary_dark">#FFD81E3A</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="ic_launcher_background">#FFFF2E4D</color>
+</resources>

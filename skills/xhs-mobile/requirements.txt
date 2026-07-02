@@ -1,0 +1,4 @@
+# xhs-mobile skill 运行依赖（仅 generate_images 需要 requests；其余用标准库）
+pytest>=8.0
+requests>=2.31
+Pillow>=10.0
