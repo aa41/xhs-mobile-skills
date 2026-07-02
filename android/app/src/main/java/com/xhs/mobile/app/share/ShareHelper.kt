@@ -20,25 +20,26 @@ object ShareHelper {
 
     private const val XHS_PACKAGE = "com.xingin.xhs"
     private const val WECHAT_PACKAGE = "com.tencent.mm"
+    private const val MP_PACKAGE = "com.tencent.mp"   // 订阅号助手
 
     // ---------- 小红书 ----------
 
-    // 主路径: ACTION_SEND_MULTIPLE + 图片 content URI + 文本 -> 系统分享面板选小红书。
-    // 使用 "* / *" MIME 类型确保图文都被接收方识别 ("image/ *" 会导致小红书忽略 EXTRA_TEXT).
+    // 主路径: ACTION_SEND_MULTIPLE + 图片 content URI → 系统分享面板选小红书。
+    // MIME 用 image/png（不用 image/* 避免忽略文字，不用 */* 避免被误判为"图片+视频"）。
+    // 文字通过剪贴板兜底：分享前自动复制，用户在小红书里长按粘贴即可。
     fun shareToXhs(context: Context, post: PostManifest) {
         val imageUris = materializeCardImages(context, post)
         val text = buildShareText(post)
 
-        // 同时将文本复制到剪贴板作为兜底（部分 App 版本可能仍忽略 EXTRA_TEXT）
+        // 先复制文字到剪贴板（核心兜底：确保文字一定能被用户粘贴）
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("小红书文案", text))
 
         val intent = if (imageUris.isNotEmpty()) {
             Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                // 使用 "*/*" 而非 "image/*"——后者会导致小红书只读图片忽略文字
-                type = "*/*"
+                type = "image/png"
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(imageUris))
-                putExtra(Intent.EXTRA_TEXT, text)
+                putExtra(Intent.EXTRA_TEXT, text)  // 部分版本支持，不放也无害
             }
         } else {
             Intent(Intent.ACTION_SEND).apply {
@@ -53,7 +54,7 @@ object ShareHelper {
         }
         if (chooser.resolveActivity(context.packageManager) != null) {
             context.startActivity(chooser)
-            Toast.makeText(context, "如文字未带入，请长按粘贴（已复制到剪贴板）", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "图片已发送，文字已复制到剪贴板，请长按粘贴", Toast.LENGTH_LONG).show()
         } else {
             Toast.makeText(context, "没有可分享的应用", Toast.LENGTH_SHORT).show()
             tryXhsScheme(context)
@@ -75,7 +76,7 @@ object ShareHelper {
     // ---------- 微信 / 公众号 ----------
 
     // 发到微信 (聊天/收藏/朋友圈): 多图用 SEND_MULTIPLE, 单图用 SEND。
-    // 使用 "* / *" MIME 类型确保图文都被接收方识别。
+    // 微信对 image/png 支持良好，EXTRA_TEXT 在微信中也能被读取。
     fun shareToWechat(context: Context, post: PostManifest) {
         val imageUris = materializeCardImages(context, post)
         val text = buildShareText(post)
@@ -86,12 +87,12 @@ object ShareHelper {
 
         val intent = when {
             imageUris.size > 1 -> Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "*/*"
+                type = "image/png"
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(imageUris))
                 putExtra(Intent.EXTRA_TEXT, text)
             }
             imageUris.size == 1 -> Intent(Intent.ACTION_SEND).apply {
-                type = "*/*"
+                type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, imageUris.first())
                 putExtra(Intent.EXTRA_TEXT, text)
             }
@@ -111,12 +112,12 @@ object ShareHelper {
     }
 
     /**
-     * 发送到公众号：第三方 App 无可靠 scheme 直达草稿编辑器。
-     * 兜底策略：
-     * 1. 把正文 HTML 复制到剪贴板。
-     * 2. 把卡片图保存到系统 Pictures 目录（用户可在公众号编辑器里手动插入）。
-     * 3. 打开微信 App（com.tencent.mm）——公众号编辑通过微信内的「订阅号」入口完成。
-     * 4. 同时也提供打开浏览器 mp.weixin.qq.com 的选项（适合习惯用电脑/网页编辑器的用户）。
+     * 发送到公众号：
+     * 1. 复制正文 HTML 到剪贴板。
+     * 2. 保存卡片图到系统相册。
+     * 3. 优先打开「订阅号助手」App (com.tencent.mp)。
+     * 4. 未安装则打开微信 → 订阅号入口。
+     * 5. 最差情况打开浏览器 mp.weixin.qq.com。
      */
     fun sendToWechatOfficial(context: Context, post: PostManifest) {
         // 1. 复制正文到剪贴板
@@ -134,29 +135,33 @@ object ShareHelper {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("公众号正文", payload))
 
-        // 2. 把卡片图保存到 Pictures 目录，方便用户在公众号编辑器手动插入
+        // 2. 保存图片到相册
         val savedImageCount = saveImagesToPictures(context, post)
 
-        // 3. 打开微信 App（公众号编辑在微信内通过「订阅号」入口完成）
-        val wechatLaunched = launchPackage(context, WECHAT_PACKAGE)
+        // 3. 按优先级尝试打开：订阅号助手 > 微信 > 浏览器
+        val mpLaunched = launchPackage(context, MP_PACKAGE)      // 订阅号助手
+        val wechatLaunched = if (!mpLaunched) launchPackage(context, WECHAT_PACKAGE) else false
 
-        // 4. 构建提示信息
+        val targetApp = when {
+            mpLaunched -> "订阅号助手"
+            wechatLaunched -> "微信"
+            else -> null
+        }
+
         val msg = buildString {
             append("正文已复制到剪贴板")
-            if (savedImageCount > 0) {
-                append("，${savedImageCount}张图片已保存到相册")
-            }
+            if (savedImageCount > 0) append("，${savedImageCount}张图片已保存到相册")
             append("。")
-            if (wechatLaunched) {
-                append("请在微信「订阅号」里粘贴发布。")
+            if (targetApp != null) {
+                append("请打开「${targetApp}」→ 素材管理 → 新建图文 → 粘贴发布。")
             } else {
-                append("请打开微信「订阅号」或浏览器访问 mp.weixin.qq.com 粘贴发布。")
+                append("请打开微信「订阅号」或浏览器 mp.weixin.qq.com 粘贴发布。")
             }
         }
         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
 
-        // 5. 如果微信未安装/未拉起，尝试打开浏览器到公众号网页编辑器
-        if (!wechatLaunched) {
+        // 浏览器兜底
+        if (targetApp == null) {
             openBrowserFallback(context)
         }
     }

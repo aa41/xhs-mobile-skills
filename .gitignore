@@ -37,3 +37,4 @@ android/app/*.iml
 # ---- Generated publishing posts (keep shipped sample, ignore the rest) ----
 android/app/src/main/assets/posts/*
 !android/app/src/main/assets/posts/2026-07-02-sample/
+test-post/

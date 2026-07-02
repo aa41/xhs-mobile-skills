@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "role": "product-diary",
+  "platform": "xhs",
+  "reviews": [
+    {
+      "agent": "role_editor",
+      "focus": "人格/角色审稿",
+      "issues": []
+    },
+    {
+      "agent": "platform_editor",
+      "focus": "平台适配审稿",
+      "issues": []
+    },
+    {
+      "agent": "publishing_risk_editor",
+      "focus": "发布风险审稿",
+      "issues": []
+    }
+  ]
+}

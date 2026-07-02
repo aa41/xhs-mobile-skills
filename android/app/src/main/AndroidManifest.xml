@@ -7,10 +7,16 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
-    <!-- Android 11+ 包可见性：声明我们要查询/拉起的小红书与微信 -->
+    <!-- Android 11+ 包可见性：声明我们要查询/拉起的小红书、微信、订阅号助手 -->
     <queries>
         <package android:name="com.xingin.xhs" />
         <package android:name="com.tencent.mm" />
+        <package android:name="com.tencent.mp" />
+        <!-- 浏览器兜底：打开 mp.weixin.qq.com -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application
