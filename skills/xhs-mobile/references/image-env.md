@@ -1,6 +1,6 @@
 # 出图环境配置
 
-`scripts/generate_images.py` 调用一个 **OpenAI 兼容**的图像端点：`POST {base_url}/images/generations`，body `{model, prompt, n, size}`，解析 `data[].b64_json` 或 `data[].url`。
+`scripts/generate_images.py` 调用一个 **OpenAI 兼容**的图像端点：`POST {base_url}/images/generations`，body 默认包含 `{model, prompt, n, size, quality}`，解析 `data[].b64_json` 或 `data[].url`。
 
 ## 环境变量
 
@@ -16,6 +16,7 @@
 | `XHS_IMAGE_TIMEOUT` | 请求超时（秒） | `120` |
 | `XHS_IMAGE_RETRIES` | 失败重试次数 | `2` |
 | `XHS_IMAGE_EXTRA_HEADERS` | 网关额外 header（JSON 字符串） | `{}` |
+| `XHS_IMAGE_EXTRA_PAYLOAD` | 网关额外 body 字段（JSON 字符串，会覆盖同名字段） | `{}` |
 
 ## 配置方法
 
@@ -47,3 +48,10 @@ python3 scripts/generate_images.py --prompt-file prompts/01-cover-demo.md --out 
 ```
 
 `--dry-run` 只把将要发送的请求（endpoint / payload / size）写到 `<out>.request.json`，不真正调用、不需要 key。用于验证 baseurl/model/size 是否正确。
+
+## 稳定性建议
+
+- 批量出图默认 `--concurrency 1`，先稳跑；确认网关限流、余额和模型并发足够后，再手动调高。
+- `XHS_IMAGE_SIZE` 只接受 `宽x高`，并限制在 256-4096 范围内。
+- 如果中转端点需要特殊字段（如 `response_format`、`watermark`、`style`），用 `XHS_IMAGE_EXTRA_PAYLOAD='{"response_format":"b64_json"}'` 追加。
+- 空 prompt、超长 prompt、非法 batchfile 会在请求前失败，避免浪费出图额度。

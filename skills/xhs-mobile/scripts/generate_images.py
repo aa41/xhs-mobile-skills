@@ -9,6 +9,8 @@ import argparse
 import base64
 import json
 import os
+import random
+import re
 import sys
 import time
 import urllib.error
@@ -58,6 +60,24 @@ def normalize_base_url(base_url):
     return base_url.rstrip("/")
 
 
+def validate_size(size):
+    if not re.fullmatch(r"\d{2,5}x\d{2,5}", size or ""):
+        raise ValueError(f"图片尺寸格式不正确：{size!r}，应类似 1024x1536")
+    width, height = (int(part) for part in size.split("x", 1))
+    if width < 256 or height < 256 or width > 4096 or height > 4096:
+        raise ValueError(f"图片尺寸超出安全范围：{size}（允许 256-4096）")
+    return size
+
+
+def validate_prompt(prompt, source="prompt"):
+    prompt = (prompt or "").strip()
+    if not prompt:
+        raise ValueError(f"{source} 为空")
+    if len(prompt) > 12000:
+        raise ValueError(f"{source} 过长（{len(prompt)} 字符），请拆成更短的卡片 prompt")
+    return prompt
+
+
 # ---------- settings ----------
 
 class Settings:
@@ -72,8 +92,14 @@ class Settings:
         self.retries = int(env("XHS_IMAGE_RETRIES", "2"))
         try:
             self.extra_headers = json.loads(env("XHS_IMAGE_EXTRA_HEADERS") or env("OPENAI_EXTRA_HEADERS") or "{}")
+            self.extra_payload = json.loads(env("XHS_IMAGE_EXTRA_PAYLOAD") or env("OPENAI_EXTRA_PAYLOAD") or "{}")
         except json.JSONDecodeError:
-            raise ValueError("XHS_IMAGE_EXTRA_HEADERS 必须是合法 JSON")
+            raise ValueError("XHS_IMAGE_EXTRA_HEADERS / XHS_IMAGE_EXTRA_PAYLOAD 必须是合法 JSON")
+        if not isinstance(self.extra_headers, dict):
+            raise ValueError("XHS_IMAGE_EXTRA_HEADERS 必须是 JSON object")
+        if not isinstance(self.extra_payload, dict):
+            raise ValueError("XHS_IMAGE_EXTRA_PAYLOAD 必须是 JSON object")
+        validate_size(self.size)
 
 
 # ---------- http (stdlib, requests 可选加速) ----------
@@ -117,14 +143,17 @@ def fetch_url(url, timeout=120):
 # ---------- core ----------
 
 def build_payload(settings, prompt, size, n=1):
+    prompt = validate_prompt(prompt)
+    image_size = validate_size(size or settings.size)
     payload = {
         "model": settings.model,
         "prompt": prompt,
         "n": n,
-        "size": size or settings.size,
+        "size": image_size,
     }
     if settings.quality:
         payload["quality"] = settings.quality
+    payload.update(settings.extra_payload)
     return payload
 
 
@@ -143,7 +172,7 @@ def request_image(settings, prompt, size):
         except Exception as exc:
             last_error = exc
             if attempt < settings.retries:
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(1.5 * (attempt + 1) + random.uniform(0, 0.5))
     raise RuntimeError(f"出图请求失败：{last_error}")
 
 
@@ -188,14 +217,24 @@ def collect_batch(args):
     tasks = []
     if args.batchfile:
         items = json.loads(Path(args.batchfile).read_text(encoding="utf-8"))
+        if not isinstance(items, list):
+            raise ValueError("batchfile 必须是 JSON array")
         for i, item in enumerate(items, 1):
+            if not isinstance(item, dict):
+                raise ValueError(f"batchfile 第 {i} 项必须是 object")
             prompt = item.get("prompt") or (Path(item["prompt_file"]).read_text(encoding="utf-8") if item.get("prompt_file") else "")
+            prompt = validate_prompt(prompt, f"batchfile 第 {i} 项 prompt")
             out = item.get("out") or f"{i:02d}.png"
+            if Path(out).is_absolute() or ".." in Path(out).parts:
+                raise ValueError(f"batchfile 第 {i} 项 out 不允许绝对路径或 ..：{out}")
+            if item.get("size"):
+                validate_size(item["size"])
             tasks.append((prompt.strip(), out, item.get("size")))
     elif args.prompts_dir:
         files = sorted(p for p in Path(args.prompts_dir).glob("*.md"))
         for i, f in enumerate(files, 1):
-            tasks.append((f.read_text(encoding="utf-8").strip(), f"{i:02d}-{f.stem}.png", None))
+            prompt = validate_prompt(f.read_text(encoding="utf-8"), str(f))
+            tasks.append((prompt, f"{i:02d}-{f.stem}.png", None))
     return tasks
 
 
@@ -210,7 +249,7 @@ def parse_args(argv):
     parser.add_argument("--batchfile", help="批量：JSON 文件 [{prompt|prompt_file, out, size?}]")
     parser.add_argument("--out-dir", help="批量输出目录")
     parser.add_argument("--size", default=None, help="覆盖尺寸，如 1024x1536 / 1024x1024")
-    parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--concurrency", type=int, default=1, help="批量并发数，默认 1；确认网关限流足够后再调高")
     parser.add_argument("--dry-run", action="store_true", help="只写请求 JSON，不真正调用")
     return parser.parse_args(argv)
 
@@ -225,17 +264,21 @@ def main(argv=None):
 
     # 单图模式
     if not (args.prompts_dir or args.batchfile):
-        if args.prompt_file:
-            prompt = Path(args.prompt_file).read_text(encoding="utf-8").strip()
-        elif args.prompt:
-            prompt = args.prompt.strip()
-        else:
-            print(json.dumps({"error": "需要 --prompt / --prompt-file 或 --prompts-dir / --batchfile"}, ensure_ascii=False))
+        try:
+            if args.prompt_file:
+                prompt = validate_prompt(Path(args.prompt_file).read_text(encoding="utf-8"), args.prompt_file)
+            elif args.prompt:
+                prompt = validate_prompt(args.prompt, "--prompt")
+            else:
+                print(json.dumps({"error": "需要 --prompt / --prompt-file 或 --prompts-dir / --batchfile"}, ensure_ascii=False))
+                return 1
+            if not args.out:
+                print(json.dumps({"error": "单图模式需要 --out"}, ensure_ascii=False))
+                return 1
+            result = generate_one(settings, prompt, args.out, args.size, args.dry_run)
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(json.dumps({"error": str(exc)}, ensure_ascii=False))
             return 1
-        if not args.out:
-            print(json.dumps({"error": "单图模式需要 --out"}, ensure_ascii=False))
-            return 1
-        result = generate_one(settings, prompt, args.out, args.size, args.dry_run)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 
@@ -243,7 +286,11 @@ def main(argv=None):
     if not args.out_dir:
         print(json.dumps({"error": "批量模式需要 --out-dir"}, ensure_ascii=False))
         return 1
-    tasks = collect_batch(args)
+    try:
+        tasks = collect_batch(args)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        return 1
     if not tasks:
         print(json.dumps({"error": "没有可生成的任务（检查 prompts-dir / batchfile）"}, ensure_ascii=False))
         return 1

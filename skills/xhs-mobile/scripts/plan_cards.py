@@ -145,10 +145,7 @@ def split_points(text):
         cleaned = line.strip(" -•\t")
         if not cleaned:
             continue
-        parts = re.split(
-            r"(?<=[。！？!?；;：:])|(?=新增|修复|注意|幕后|结果|问题|调整|数据|下一步|功能|页面|分享)",
-            cleaned,
-        )
+        parts = re.split(r"(?<=[。！？!?；;：:])", cleaned)
         for part in parts:
             point = part.strip(" -•\t；;。 ")
             if point:
@@ -252,7 +249,15 @@ def render_brief(style_preset, layout_preset, palette):
 
 
 def trim_title(point, limit):
-    return strip_sentence_end(point[:limit])
+    point = strip_sentence_end(point)
+    if len(point) <= limit:
+        return point
+    candidate = point[:limit]
+    for marks in ("，,。！？!?；;：:、", " "):
+        for index in range(len(candidate) - 1, 7, -1):
+            if candidate[index] in marks:
+                return strip_sentence_end(candidate[:index])
+    return strip_sentence_end(candidate)
 
 
 def make_card(index, count, role, point, style_override=None, layout_override=None, palette_override=None):
@@ -281,9 +286,11 @@ def make_card(index, count, role, point, style_override=None, layout_override=No
         f"材质与质感：{style_preset['material']}；真实界面截图感、细腻微阴影、轻颗粒、边缘高光。",
         "画面层次：标题层 / 主视觉层 / 数据或日志层 / 局部标注层 / 留白呼吸区。",
         "必须包含：局部标注、状态点、真实界面或日志块、至少一个和内容相关的小细节。",
+        "文字规则：只保留一个主标题，必须完全使用上面的主标题；其余文字只用 3-6 个短标签或数字，不写长段落。",
+        "构图规则：四周保留安全边距，重要文字不要贴边、不要被设备框/贴纸/阴影遮挡，整体保持 9:16 竖版。",
         f"渲染重点：{render_effect}",
-        "禁止：官方logo，伪造小红书品牌标识，空泛渐变背景，企业PPT感，大段乱码文字，过度简单图标堆砌。",
-        "中文排版要稳，主标题清晰可读，细节文字少量但要像真实产品记录。",
+        "禁止：官方logo，二维码，水印，伪造小红书品牌标识，空泛渐变背景，企业PPT感，大段乱码文字，过度简单图标堆砌。",
+        "中文排版要稳，主标题清晰可读；如果细节文字无法保证准确，就改成色块、短标签、状态点或日志占位线。",
     ])
 
     return {

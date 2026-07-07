@@ -124,6 +124,7 @@ cp skills/xhs-mobile/.env.example ~/.xhs-mobile/.env
 | `XHS_IMAGE_TIMEOUT` | 请求超时秒数 | `120` |
 | `XHS_IMAGE_RETRIES` | 失败重试次数 | `2` |
 | `XHS_IMAGE_EXTRA_HEADERS` | 额外 HTTP 头（JSON 格式） | `{}` |
+| `XHS_IMAGE_EXTRA_PAYLOAD` | 额外请求体字段（JSON 格式） | `{}` |
 
 ### 配置优先级
 
@@ -142,6 +143,8 @@ python3 skills/xhs-mobile/scripts/generate_images.py \
   --prompt "test" --out /tmp/test.png --dry-run
 # 会写出请求 JSON 到 /tmp/test.request.json，不真正调用 API
 ```
+
+批量出图默认 `--concurrency 1`，优先保证稳定；确认你的图像网关支持并发后再调高。
 
 ---
 

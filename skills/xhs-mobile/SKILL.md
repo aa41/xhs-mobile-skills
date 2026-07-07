@@ -99,6 +99,8 @@ python3 {baseDir}/scripts/generate_images.py --prompts-dir prompts --out-dir <po
 - 配置走环境变量（baseurl/model/apikey/size 等），见 [references/image-env.md](references/image-env.md)。
 - 无 key 时用 `--dry-run` 自检请求是否正确，不真正出图。
 - 卡片为竖版，默认 `1024x1536`。
+- 批量出图默认单并发，优先稳定；确认图像网关限流足够后再加 `--concurrency`。
+- 若中转端点需要额外 body 字段，用 `XHS_IMAGE_EXTRA_PAYLOAD` 配置，不要直接改脚本。
 
 ### Step 7 · 打包到 App assets
 
