@@ -17,7 +17,9 @@ import com.xhs.mobile.app.ui.PostListAdapter
 class MainActivity : AppCompatActivity() {
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var emptyView: TextView
+    private lateinit var emptyView: View
+    private lateinit var postCount: TextView
+    private lateinit var latestDate: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,9 +30,13 @@ class MainActivity : AppCompatActivity() {
 
         recyclerView = findViewById(R.id.recyclerView)
         emptyView = findViewById(R.id.emptyView)
+        postCount = findViewById(R.id.postCount)
+        latestDate = findViewById(R.id.latestDate)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
         val posts = PostRepository.loadAll(this)
+        postCount.text = "${posts.size} 条内容"
+        latestDate.text = posts.firstOrNull()?.date?.let { "最新 $it" } ?: "等待生成"
         if (posts.isEmpty()) {
             recyclerView.visibility = View.GONE
             emptyView.visibility = View.VISIBLE
@@ -48,12 +54,13 @@ class MainActivity : AppCompatActivity() {
 
     /** 给根布局的顶部标题区域添加 status bar 高度 padding，避免与状态栏重叠。 */
     private fun applyStatusBarInsets() {
-        val root = findViewById<View>(android.R.id.content)
-        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+        val header = findViewById<View>(R.id.header)
+        val initialTop = header.paddingTop
+        ViewCompat.setOnApplyWindowInsetsListener(header) { view, insets ->
             val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
             view.setPadding(
                 view.paddingLeft,
-                statusBarHeight,
+                initialTop + statusBarHeight,
                 view.paddingRight,
                 view.paddingBottom
             )

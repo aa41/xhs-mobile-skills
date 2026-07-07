@@ -13,12 +13,17 @@ import com.xhs.mobile.app.data.PostManifest
 import com.xhs.mobile.app.data.PostRepository
 import com.xhs.mobile.app.share.ShareHelper
 import com.xhs.mobile.app.ui.XhsCardAdapter
+import com.google.android.material.button.MaterialButtonToggleGroup
+import kotlin.math.abs
 
 /** 详情：小红书 / 微信公众号 模拟预览 + 分享按钮。 */
 
 class PostDetailActivity : AppCompatActivity() {
 
     private lateinit var post: PostManifest
+    private lateinit var platformTabs: MaterialButtonToggleGroup
+    private lateinit var detailTitle: TextView
+    private lateinit var detailMeta: TextView
 
     // 小红书预览
     private lateinit var xhsContainer: View
@@ -65,7 +70,14 @@ class PostDetailActivity : AppCompatActivity() {
         webView = findViewById(R.id.webView)
         wechatTitle = findViewById(R.id.wechatTitle)
         wechatDigest = findViewById(R.id.wechatDigest)
+        platformTabs = findViewById(R.id.platformTabs)
+        detailTitle = findViewById(R.id.detailTitle)
+        detailMeta = findViewById(R.id.detailMeta)
 
+        detailTitle.text = post.title
+        detailMeta.text = "${post.date}  ·  ${post.cardCount} 张卡片  ·  ${post.roleLabel}"
+
+        findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<View>(R.id.tabXhs).setOnClickListener { showPlatform(true) }
         findViewById<View>(R.id.tabWechat).setOnClickListener { showPlatform(false) }
     }
@@ -77,6 +89,12 @@ class PostDetailActivity : AppCompatActivity() {
 
         if (post.cards.isNotEmpty()) {
             viewPager.adapter = XhsCardAdapter(this, post, post.cards)
+            viewPager.offscreenPageLimit = 1
+            viewPager.setPageTransformer { page, position ->
+                val distance = 1f - abs(position).coerceAtMost(1f)
+                page.alpha = 0.82f + distance * 0.18f
+                page.scaleY = 0.96f + distance * 0.04f
+            }
             pagerHint.text = "1 / ${post.cards.size}"
             viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
                 override fun onPageSelected(position: Int) {
@@ -117,18 +135,18 @@ class PostDetailActivity : AppCompatActivity() {
     private fun showPlatform(xhs: Boolean) {
         xhsContainer.visibility = if (xhs) View.VISIBLE else View.GONE
         wechatContainer.visibility = if (xhs) View.GONE else View.VISIBLE
-        findViewById<View>(R.id.tabXhs).alpha = if (xhs) 1f else 0.5f
-        findViewById<View>(R.id.tabWechat).alpha = if (xhs) 0.5f else 1f
+        platformTabs.check(if (xhs) R.id.tabXhs else R.id.tabWechat)
     }
 
     /** 给根布局顶部加 status bar 高度 padding，避免内容与状态栏重叠。 */
     private fun applyStatusBarInsets() {
-        val root = findViewById<View>(android.R.id.content)
-        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+        val header = findViewById<View>(R.id.detailHeader)
+        val initialTop = header.paddingTop
+        ViewCompat.setOnApplyWindowInsetsListener(header) { view, insets ->
             val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
             view.setPadding(
                 view.paddingLeft,
-                statusBarHeight,
+                initialTop + statusBarHeight,
                 view.paddingRight,
                 view.paddingBottom
             )

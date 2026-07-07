@@ -3,11 +3,29 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
         <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/info</item>
+        <item name="fontFamily">sans</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/bg</item>
         <item name="android:windowBackground">@color/bg</item>
+        <item name="materialButtonStyle">@style/Widget.XhsMobile.Button</item>
         <!-- Edge-to-edge: draw behind status bar, handle insets in code -->
         <item name="android:windowTranslucentStatus">true</item>
         <!-- 暂无深色主题资源，强制浅色模式避免白字白底等视觉异常 -->
         <item name="android:forceDarkAllowed">false</item>
+    </style>
+
+    <style name="Widget.XhsMobile.Button" parent="Widget.MaterialComponents.Button">
+        <item name="cornerRadius">8dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconPadding">8dp</item>
+    </style>
+
+    <style name="ShapeAppearance.XhsMobile.Small" parent="ShapeAppearance.MaterialComponents.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
     </style>
 </resources>
