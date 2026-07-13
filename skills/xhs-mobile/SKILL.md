@@ -43,6 +43,14 @@ metadata:
 
 每一步完成且自检通过后，才进入下一步。
 
+### 默认完成范围（重要）
+
+- 用户提到「版本更新」「更新内容」「小红书/公众号发布稿」等需求时，除非明确说「只要文案」「不要图片」或「不要安装」，默认执行完整 10 步流程：**文案 → 3 张卡片图 → 打包 assets → 构建 APK → adb 安装并拉起 App**。
+- 「只写面向用户的功能更新点，技术细节不披露」只约束文案内容，**不代表只生成文字**，不得据此跳过出图、打包、构建或安装。
+- 用户未指定卡片数量、style、layout、palette 时，不暂停询问；直接使用 `release-note` 的默认方案和 3 张卡片。只有用户主动要求定制时才询问偏好。
+- 不得把生成 prompt 文件或 `--dry-run` 当作已经出图。必须确认图片文件实际生成后才能进入打包步骤。
+- 若图像 API 未配置、生成失败、Android 构建环境缺失或 adb 无设备，应完成此前所有可完成步骤，并明确列出阻塞原因与最短修复方式；不得静默退化成只输出文案。
+
 ### Step 1 · 识别角色
 
 从 `references/roles.md` 选一个：
@@ -87,7 +95,7 @@ python3 {baseDir}/scripts/review_content.py --file caption.md --role <role> --pl
 python3 {baseDir}/scripts/plan_cards.py --file caption.md --role <role> --count 3 --out plan.json
 ```
 
-- `--count` 默认 **3**，用户可选 1–9。先用 `AskUserQuestion` 确认张数与风格偏好（style/layout/palette，见 [references/card-design.md](references/card-design.md)）。
+- `--count` 默认 **3**，用户可选 1–9。未指定时直接采用角色默认 style/layout/palette（见 [references/card-design.md](references/card-design.md)），不为偏好确认而中断完整流程。
 - 据输出的 `cards[].render_prompt`，为每张卡片写独立 prompt 文件（`prompts/NN-<type>-<slug>.md`），作为可复现记录。
 
 ### Step 6 · 出图（OpenAI 兼容）
