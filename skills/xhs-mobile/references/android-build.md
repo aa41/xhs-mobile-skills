@@ -6,7 +6,7 @@
 
 - **JDK 17+**（已验证 Java 21 可用）。
 - **Android SDK**：含 `platform-tools`（adb）+ 对应 `platforms;android-34` + `build-tools`。
-- **Gradle**：用仓库自带的 `android/gradlew` wrapper，**不需要**全局 gradle。
+- **Gradle**：用全局 Runtime 自带的 `android/gradlew` wrapper，**不需要**全局 gradle。
 
 ## ANDROID_HOME 解析
 
@@ -28,16 +28,18 @@ export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
 
 按以下顺序找 `android/` 目录（含 `gradlew`）：
 
-1. `--android-dir` 参数 / `XHS_ANDROID_DIR` 环境变量。
-2. skill 安装时写入的 `~/.xhs-mobile/config.json` 里的 `android_dir`（全局安装场景）。
-3. 从 skill 目录向上找最近的含 `android/` 的仓库根。
+1. `--android-dir` 参数。
+2. `XHS_ANDROID_DIR` 环境变量。
+3. 当前项目或用户目录 `.xhs-mobile/config.json` 里的 `android_dir`。
+4. 全局 Runtime：`~/.xhs-mobile/runtime/android`。
+5. 仅源码开发时，回退到 skill 自带模板或仓库根 `android/`。
 
 ## 构建命令
 
 ```bash
-python3 scripts/build_apk.py --android-dir <repo>/android
-# 等价于：cd <repo>/android && ./gradlew :app:assembleDebug
-# 产物：<repo>/android/app/build/outputs/apk/debug/app-debug.apk
+python3 scripts/build_apk.py
+# 等价于：cd ~/.xhs-mobile/runtime/android && ./gradlew :app:assembleDebug
+# 产物：~/.xhs-mobile/runtime/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 首次构建会下载 Gradle distribution + 依赖，需联网，耗时几分钟。

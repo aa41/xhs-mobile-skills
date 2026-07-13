@@ -110,15 +110,15 @@ python3 {baseDir}/scripts/package_assets.py \
   --caption-file caption.md --title "标题" \
   --tag 标签1 --tag 标签2 \
   --wechat-html wechat.html --wechat-title "公众号标题" --wechat-digest "摘要" \
-  --android-dir <repo>/android --slug <功能slug> --date <YYYY-MM-DD>
+  --slug <功能slug> --date <YYYY-MM-DD>
 ```
 
-产物写入 `<android>/app/src/main/assets/posts/<YYYY-MM-DD>-<slug>/`（`manifest.json` + `images/` + `caption.md` + `title.txt` + `tags.txt` + `wechat.html`）。App 扫描该目录。
+产物默认写入全局 Runtime：`~/.xhs-mobile/runtime/android/app/src/main/assets/posts/<YYYY-MM-DD>-<slug>/`。App 扫描该目录。仅调试时才用 `--android-dir` 或 `XHS_ANDROID_DIR` 覆盖。
 
 ### Step 8 · 构建 APK
 
 ```
-python3 {baseDir}/scripts/build_apk.py --android-dir <repo>/android
+python3 {baseDir}/scripts/build_apk.py
 ```
 
 - 自动解析 `ANDROID_HOME`（env → `~/Library/Android/sdk` → 报错并给指引）。
@@ -146,7 +146,7 @@ python3 {baseDir}/scripts/install_apk.py --apk <apk> --launch
 见仓库根 `README.md`。一键：
 
 ```
-# Claude Code / Codex / OpenCode，全局或项目级
+# Claude Code / Codex / OpenCode，全局安装（唯一正式支持模式）
 python3 {baseDir}/scripts/install_skill.py --target all --scope global      # 安装
 python3 {baseDir}/scripts/install_skill.py --target all --scope global --force   # 更新（覆盖）
 python3 {baseDir}/scripts/install_skill.py uninstall --target all           # 卸载
@@ -155,3 +155,5 @@ python3 {baseDir}/scripts/install_skill.py uninstall --target all           # �
 或 Claude Code 插件市场：`/plugin marketplace add <owner>/<repo>` → `/plugin install xhs-mobile-skills@xhs-mobile`。
 或 `npx skills add <owner>/<repo>`。
 或直接告诉 agent：「请安装 github.com/.../xhs-mobile-skills」。
+
+安装会同时部署共享 Android Runtime 到 `~/.xhs-mobile/runtime/android`。业务项目中只保存内容素材和可选的 `.xhs-mobile/.env` / `config.json`，不要复制 Android 工程。

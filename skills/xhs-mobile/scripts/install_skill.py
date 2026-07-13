@@ -1,59 +1,64 @@
 #!/usr/bin/env python3
-"""安装 / 更新 / 卸载 xhs-mobile skill。
+"""全局安装 / 更新 / 卸载 xhs-mobile skill 与 Android Runtime。
 
 target: claude / codex / opencode / all
-scope : global（用户级）/ project（当前项目）
+scope : global（用户级，唯一正式支持的安装模式）
 command: install（默认） / uninstall   ;  更新 = install --force
 
-安装后写一份 config.json（记录 repo_root / android_dir），供全局安装的 skill 定位 Android 工程构建。
+Android 工程安装到 ~/.xhs-mobile/runtime/android，不依赖仓库原始路径。
 """
 
 import argparse
 import json
 import shutil
 import sys
+import tempfile
 from pathlib import Path
+
+from runtime_paths import GLOBAL_ANDROID_DIR, GLOBAL_ROOT, bundled_android_dir
 
 
 SKILL_NAME = "xhs-mobile"
 SOURCE_DIR = Path(__file__).resolve().parents[1]          # skills/xhs-mobile
-REPO_ROOT = SOURCE_DIR.parents[1]                          # 仓库根
-ANDROID_DIR = REPO_ROOT / "android"
+SOURCE_ANDROID_DIR = bundled_android_dir(__file__)
 
 IGNORE = shutil.ignore_patterns(
     ".git", "__pycache__", ".pytest_cache", "tests", "node_modules",
     "build", ".env", "*.request.json",
 )
 
-CONFIG_RELPATH = ".xhs-mobile/config.json"
-
+ANDROID_IGNORE = shutil.ignore_patterns(
+    ".gradle", ".kotlin", "build", "local.properties", "*.iml", ".DS_Store"
+)
 
 def target_dirs(target, scope):
     """返回 {target_name: dest_path}。"""
+    if scope != "global":
+        raise ValueError("xhs-mobile 仅支持 global scope；项目级差异请写入 <project>/.xhs-mobile/")
     home = Path.home()
-    cwd = Path.cwd()
     dirs = {}
 
     if target in ("claude", "all"):
-        base = home / ".claude" / "skills" if scope == "global" else cwd / ".claude" / "skills"
+        base = home / ".claude" / "skills"
         dirs["claude"] = base / SKILL_NAME
     if target in ("codex", "all"):
-        base = home / ".agents" / "skills" if scope == "global" else cwd / ".agents" / "skills"
+        base = home / ".agents" / "skills"
         dirs["codex"] = base / SKILL_NAME
     if target in ("opencode", "all"):
-        base = home / ".config" / "opencode" / "skill" if scope == "global" else cwd / ".opencode" / "skill"
+        base = home / ".config" / "opencode" / "skill"
         dirs["opencode"] = base / SKILL_NAME
     return dirs
 
 
 def write_config(scope, dry_run):
-    config_dir = (Path.home() if scope == "global" else Path.cwd()) / ".xhs-mobile"
+    config_dir = GLOBAL_ROOT
     config_path = config_dir / "config.json"
     payload = {
-        "repo_root": str(REPO_ROOT),
-        "android_dir": str(ANDROID_DIR),
+        "android_dir": str(GLOBAL_ANDROID_DIR),
+        "runtime_dir": str(GLOBAL_ANDROID_DIR.parent),
         "skill_name": SKILL_NAME,
         "scope": scope,
+        "schema_version": 2,
     }
     if dry_run:
         return config_path
@@ -62,24 +67,70 @@ def write_config(scope, dry_run):
     return config_path
 
 
+def install_android_runtime(force, dry_run, source_android_dir=None):
+    """Install a self-contained runtime and preserve generated posts on updates."""
+    source_android_dir = source_android_dir or SOURCE_ANDROID_DIR
+    runtime_existed = GLOBAL_ANDROID_DIR.exists()
+    if dry_run:
+        return {"status": "dry-run", "dest": str(GLOBAL_ANDROID_DIR)}
+    if runtime_existed and not force:
+        return {"status": "exists", "dest": str(GLOBAL_ANDROID_DIR)}
+    if source_android_dir is None:
+        raise RuntimeError("安装包中找不到 Android 工程（缺 gradlew）")
+
+    posts_rel = Path("app/src/main/assets/posts")
+    with tempfile.TemporaryDirectory(prefix="xhs-mobile-") as tmp:
+        saved_posts = Path(tmp) / "posts"
+        current_posts = GLOBAL_ANDROID_DIR / posts_rel
+        if current_posts.exists():
+            shutil.copytree(current_posts, saved_posts)
+        if GLOBAL_ANDROID_DIR.exists():
+            shutil.rmtree(GLOBAL_ANDROID_DIR)
+        GLOBAL_ANDROID_DIR.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source_android_dir, GLOBAL_ANDROID_DIR, ignore=ANDROID_IGNORE)
+        if saved_posts.exists():
+            shutil.copytree(saved_posts, GLOBAL_ANDROID_DIR / posts_rel, dirs_exist_ok=True)
+    return {"status": "updated" if runtime_existed else "installed", "dest": str(GLOBAL_ANDROID_DIR)}
+
+
 def do_install(target, scope, force, dry_run):
     dirs = target_dirs(target, scope)
+    source_dir = SOURCE_DIR
+    source_android_dir = SOURCE_ANDROID_DIR
+    staging = None
+    resolved_dests = [dest.expanduser().resolve() for dest in dirs.values()]
+    if force and any(source_dir == dest or dest in source_dir.parents for dest in resolved_dests):
+        staging = tempfile.TemporaryDirectory(prefix="xhs-mobile-skill-")
+        staged_skill = Path(staging.name) / SKILL_NAME
+        shutil.copytree(source_dir, staged_skill, ignore=IGNORE)
+        source_dir = staged_skill
+        staged_android = staged_skill / "android-template"
+        if staged_android.exists():
+            source_android_dir = staged_android
+
     results = []
-    for name, dest in dirs.items():
-        dest = dest.expanduser().resolve()
-        if dest.exists():
-            if not force:
-                results.append({"target": name, "status": "exists", "dest": str(dest),
-                                "hint": "已存在；加 --force 覆盖（=更新）"})
-                continue
+    try:
+        for name, dest in dirs.items():
+            dest = dest.expanduser().resolve()
+            if dest.exists():
+                if not force:
+                    results.append({"target": name, "status": "exists", "dest": str(dest),
+                                    "hint": "已存在；加 --force 覆盖（=更新）"})
+                    continue
+                if not dry_run:
+                    shutil.rmtree(dest)
             if not dry_run:
-                shutil.rmtree(dest)
-        if not dry_run:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(SOURCE_DIR, dest, ignore=IGNORE)
-        results.append({"target": name, "status": "installed" if not dry_run else "dry-run", "dest": str(dest)})
-    config_path = write_config(scope, dry_run)
-    return {"results": results, "config": str(config_path), "repo_root": str(REPO_ROOT)}
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(source_dir, dest, ignore=IGNORE)
+                if source_android_dir and not (dest / "android-template").exists():
+                    shutil.copytree(source_android_dir, dest / "android-template", ignore=ANDROID_IGNORE)
+            results.append({"target": name, "status": "installed" if not dry_run else "dry-run", "dest": str(dest)})
+        runtime = install_android_runtime(force, dry_run, source_android_dir)
+        config_path = write_config(scope, dry_run)
+        return {"results": results, "runtime": runtime, "config": str(config_path)}
+    finally:
+        if staging:
+            staging.cleanup()
 
 
 def do_uninstall(target, scope):
@@ -99,7 +150,7 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description="安装 / 更新 / 卸载 xhs-mobile skill")
     parser.add_argument("command", nargs="?", default="install", choices=["install", "uninstall"])
     parser.add_argument("--target", choices=["claude", "codex", "opencode", "all"], default="all")
-    parser.add_argument("--scope", choices=["global", "project"], default="global")
+    parser.add_argument("--scope", choices=["global"], default="global")
     parser.add_argument("--force", action="store_true", help="覆盖已存在目录（=更新）")
     parser.add_argument("--dry-run", action="store_true", help="只打印目标路径，不写盘")
     return parser.parse_args(argv)

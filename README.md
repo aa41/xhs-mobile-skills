@@ -28,7 +28,7 @@ xhs-mobile-skills/
 │   │   ├── sharing.md            ← 分享路径与边界
 │   │   ├── image-env.md          ← 出图环境配置
 │   │   └── android-build.md      ← Android 构建文档
-│   ├── scripts/                  ← 7 个独立脚本（stdlib-based）
+│   ├── scripts/                  ← 8 个命令脚本 + 1 个 Runtime 路径 helper
 │   │   ├── git_changelog.py      ← git log → 结构化 JSON
 │   │   ├── review_content.py     ← 反 AI 门禁审稿
 │   │   ├── plan_cards.py         ← 文案 → N 张卡片规划
@@ -38,7 +38,7 @@ xhs-mobile-skills/
 │   │   ├── install_apk.py        ← adb 安装到手机
 │   │   └── install_skill.py     ← 安装本 skill 到各 agent
 │   └── agents/openai.yaml       ← Codex agent 描述
-├── android/                      ← Android 分享助手 App
+├── android/                      ← Android Runtime 源模板（安装时部署到用户目录）
 │   ├── app/src/main/
 │   │   ├── java/.../share/ShareHelper.kt   ← 分享核心: XHS / 微信 / 公众号
 │   │   ├── java/.../data/Models.kt         ← PostManifest 数据模型
@@ -70,7 +70,7 @@ xhs-mobile-skills/
 
 | 工具 | 版本 | 用途 |
 |------|------|------|
-| Python | 3.10+ | 7 个纯脚本运行 |
+| Python | 3.10+ | 工作流与 Runtime 管理脚本 |
 | Git | 2.x | 采集提交历史 |
 | JDK | 17+ | 编译 Android APK |
 | Android SDK | platform-tools + platforms;android-34 + build-tools | 构建 & adb 连接 |
@@ -189,13 +189,14 @@ python3 $BASE/package_assets.py \
   --caption-file caption.md --title "你的标题" \
   --tag 小红书 --tag 版本更新 \
   --wechat-html wechat.html --wechat-title "公众号标题" --wechat-digest "摘要" \
-  --android-dir android --slug feature-slug --date $(date +%Y-%m-%d)
+  --slug feature-slug --date $(date +%Y-%m-%d)
 
 # Step 8 · 构建 APK
-python3 $BASE/build_apk.py --android-dir android
+python3 $BASE/build_apk.py
 
 # Step 9 · 安装到手机
-python3 $BASE/install_apk.py --apk android/app/build/outputs/apk/debug/app-debug.apk --launch
+python3 $BASE/install_apk.py \
+  --apk ~/.xhs-mobile/runtime/android/app/build/outputs/apk/debug/app-debug.apk --launch
 
 # Step 10 · 在手机上打开 App → 点卡片 → 点分享按钮 → 选小红书/微信 → 确认发布
 ```
@@ -210,7 +211,7 @@ python3 $BASE/install_apk.py --apk android/app/build/outputs/apk/debug/app-debug
 # 1. Clone 仓库到新电脑
 git clone <repo-url> xhs-mobile-skills && cd xhs-mobile-skills
 
-# 2. 安装 skill
+# 2. 全局安装 skill 与 Android Runtime
 python3 skills/xhs-mobile/scripts/install_skill.py --target all --scope global
 
 # 3. 配置出图环境
@@ -227,20 +228,24 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"   # macOS
 
 # 6. 验证
 python3 skills/xhs-mobile/scripts/review_content.py --text "测试" --role daily-dev-log --platform xhs
+test -x ~/.xhs-mobile/runtime/android/gradlew
 ```
+
+安装完成后，Android 工程位于固定路径 `~/.xhs-mobile/runtime/android`，不再引用 clone 仓库的绝对路径。以后移动或删除 clone 目录，不影响已安装 Runtime。迁移到新电脑时重新执行安装命令即可完整部署 skill 与 Android 工程。
 
 ### 迁移到另一个项目（复用 skill 和 App）
 
-`xhs-mobile-skills` 本身已经是一个独立仓库，git clone 到任意目录即可。关键点：
+Android App 是全局共享 Runtime，不属于任何业务项目。关键点：
 
-- **Skill 安装是全局的**（`--scope global`），装一次可以给多个项目用
-- `XHS_ANDROID_DIR` 环境变量可以覆盖 Android 工程路径
+- **Skill 与 Android Runtime 都是全局的**，装一次可以给多个项目用
+- 默认 Runtime 路径固定为 `~/.xhs-mobile/runtime/android`
+- `XHS_ANDROID_DIR` 仅用于开发调试时覆盖 Runtime 路径
 - 每个项目可以有独立的 `.xhs-mobile/.env`（项目级配置覆盖用户级）
 
 ```bash
-# 在另一个项目中指向本 skill 的 Android 工程
-export XHS_ANDROID_DIR=/path/to/xhs-mobile-skills/android
-python3 /path/to/xhs-mobile-skills/skills/xhs-mobile/scripts/package_assets.py ...
+# 在任意项目中直接调用已安装 skill；无需复制 android/
+python3 ~/.agents/skills/xhs-mobile/scripts/package_assets.py ...
+python3 ~/.agents/skills/xhs-mobile/scripts/build_apk.py
 ```
 
 ### 只迁移 Android App（给非技术用户用）
@@ -275,7 +280,7 @@ App 内置的 sample 内容会展示完整功能。后续更新内容只需重�
 ### 内容目录格式
 
 ```
-android/app/src/main/assets/posts/
+~/.xhs-mobile/runtime/android/app/src/main/assets/posts/
 └── 2026-07-02-feature-slug/
     ├── manifest.json     ← 列表 & 预览用的元数据
     ├── caption.md         ← 小红书正文
@@ -300,7 +305,7 @@ python3 skills/xhs-mobile/scripts/install_skill.py --target all --scope global
 ```
 
 `--target`：`claude` / `codex` / `opencode` / `all`
-`--scope`：`global`（用户级，推荐）/ `project`（当前项目 `.claude/skills/`）
+`--scope`：仅支持 `global`。项目级差异通过项目内 `.xhs-mobile/` 配置管理，不复制 skill 或 Android 工程。
 
 ### 更新（覆盖已有安装）
 ```bash
@@ -315,6 +320,7 @@ python3 skills/xhs-mobile/scripts/install_skill.py uninstall --target all
 ### 查看安装状态
 ```bash
 cat ~/.xhs-mobile/config.json
+test -x ~/.xhs-mobile/runtime/android/gradlew
 ```
 
 ---

@@ -19,8 +19,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from runtime_paths import resolve_android_dir
 
-DEFAULT_ANDROID_DIR = Path(__file__).resolve().parents[3] / "android"  # <repo>/android
 ASSETS_POSTS_REL = "app/src/main/assets/posts"
 
 
@@ -138,7 +138,8 @@ def parse_args(argv):
     parser.add_argument("--wechat-html", default=None)
     parser.add_argument("--wechat-title", default=None)
     parser.add_argument("--wechat-digest", default=None)
-    parser.add_argument("--android-dir", default=str(DEFAULT_ANDROID_DIR))
+    parser.add_argument("--android-dir", default=None,
+                        help="默认使用 ~/.xhs-mobile/runtime/android")
     parser.add_argument("--slug", default=None)
     parser.add_argument("--date", default=None, help="YYYY-MM-DD，默认今天")
     parser.add_argument("--role", default="daily-dev-log")
@@ -147,6 +148,13 @@ def parse_args(argv):
 
 def main(argv=None):
     args = parse_args(argv or sys.argv[1:])
+    android_dir = resolve_android_dir(args.android_dir, __file__)
+    if not (android_dir / "gradlew").exists():
+        print(json.dumps({
+            "error": f"未安装全局 Android Runtime：{android_dir}",
+            "hint": "请重新运行 install_skill.py --target all --scope global"
+        }, ensure_ascii=False))
+        return 1
     manifest, post_dir = package(
         plan_path=args.plan,
         images_dir=args.images_dir,
@@ -156,7 +164,7 @@ def main(argv=None):
         wechat_html=args.wechat_html,
         wechat_title=args.wechat_title,
         wechat_digest=args.wechat_digest,
-        android_dir=args.android_dir,
+        android_dir=android_dir,
         slug=args.slug,
         date=args.date,
         role=args.role,

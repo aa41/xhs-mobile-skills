@@ -8,34 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from runtime_paths import resolve_android_dir
 
-DEFAULT_ANDROID_DIR = Path(__file__).resolve().parents[3] / "android"
+
 APK_REL = "app/build/outputs/apk/debug/app-debug.apk"
-
-
-def load_config_android_dir():
-    for base in (Path.cwd(), Path.home()):
-        cfg = base / ".xhs-mobile" / "config.json"
-        if cfg.exists():
-            try:
-                data = json.loads(cfg.read_text(encoding="utf-8"))
-                if data.get("android_dir") and Path(data["android_dir"]).exists():
-                    return Path(data["android_dir"])
-            except Exception:
-                pass
-    return None
-
-
-def resolve_android_dir(arg):
-    if arg:
-        return Path(arg).expanduser().resolve()
-    env_dir = os.environ.get("XHS_ANDROID_DIR")
-    if env_dir and Path(env_dir).exists():
-        return Path(env_dir).expanduser().resolve()
-    cfg_dir = load_config_android_dir()
-    if cfg_dir:
-        return cfg_dir
-    return DEFAULT_ANDROID_DIR.resolve()
 
 
 def resolve_sdk():
@@ -72,7 +48,7 @@ def parse_args(argv):
 
 def main(argv=None):
     args = parse_args(argv or sys.argv[1:])
-    android_dir = resolve_android_dir(args.android_dir)
+    android_dir = resolve_android_dir(args.android_dir, __file__)
     if not (android_dir / "gradlew").exists():
         print(json.dumps({"error": f"不是有效的 Android 工程（缺 gradlew）：{android_dir}"}, ensure_ascii=False))
         return 1
